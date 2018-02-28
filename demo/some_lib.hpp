@@ -45,7 +45,7 @@ protected:
     /**
       virtual member-function
      */
-    virtual void vf() = 0;
+    virtual void vf() = 0; // no doc
 
 private:
     // not a doc as well
@@ -59,6 +59,7 @@ private:
 
 /// Class which inherits from `lib_class`
 class other : public lib_class {
+    ////// no doc
     virtual void vf() override {
         do_stuff();
     }
@@ -70,5 +71,10 @@ class other : public lib_class {
 template <typename T, typename... Args>
 struct caller
 {
+    /*
+    /// no doc
+    /**
+     no doc
+    */
     T func(Args&&... args);
 };
