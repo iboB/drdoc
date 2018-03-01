@@ -4,20 +4,31 @@ CONFIG = {
   :doc_inter => '*',
   :doc_end => '*/',
   :doc_line => '///',
+  :doc_post => '<',
   :comment_start => '/*',
   :comment_end => '*/',
   :comment_line => '//',
   :scope_type => :block,
   :scope_begin => '{',
-  :scope_end => '}'
+  :scope_end => '}',
+  :string_literal_open => '"',
+  :string_literal_close => '"',
+  :string_literal_esacpe => '\\"',
 }
 
 Config = Struct.new(*CONFIG.keys).new(*CONFIG.values).freeze
 
-class Parser
+# parse into abstract syntax sequence
+# ASS :D
+class PreParser
   def initialize
 
   end
+
+  # element which is simply code
+  #~ class Code
+    #~ def parse
+
 
   def parse(text)
     multiline_comment = false
