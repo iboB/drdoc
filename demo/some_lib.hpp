@@ -12,7 +12,7 @@ void do_stuff(int n = 34);
 */
 #define MACRO(a, b) (a) + (b)
 
-void dont_do_stuff(const char* foo = "//<") //< hehe
+void dont_do_stuff(const char* foo = "///<") ///< hehe
 
 /// Documented class
 /// Does something
