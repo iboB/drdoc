@@ -19,53 +19,55 @@ CONFIG = {
 
 Config = Struct.new(*CONFIG.keys).new(*CONFIG.values).freeze
 
+open = Regexp.union [
+  Config.doc_start,
+  Config.doc_line,
+  Config.string_literal_open,
+  Config.scope_begin,
+  Config.comment_start,
+  Config.comment_line,
+]
+
+RE_Open = /(#{open.source})/
+
 class PreParser
   def initialize
-
   end
 
   # element which is simply code
   class Code
-    def initialize(code)
-      @code = code
-    end
-    attr_reader :code
-  end
-
-  class DocML
-    def parse(match, after)
-      i = after.index(Config.doc_end)
-      raise "bad" if !i
-      @code = after[0 .. i]
-      after[(i + Config.doc_end.length) .. -1]
+    def parse_line(line)
+      index = line =~ RE_Open
+      return self if !index
+      rest = line[(index + $1.length) .. -1]
+      puts rest
+      # if
+      self
     end
   end
 
-  class DocLine
-    def parse(match, after)
-      i = after.index("\n") | -1
-      @code = [after .. i]
-      after[i .. -1]
+  class String
+    def initialize(parent)
+      @paren = parent
+    end
+
+    def parse_line(line)
+      # TODO: check escape
+
+      i = line.index(Config.string_literal_close)
+      return self if !i
+      parent.parse_line(line[(i + Config.string_literal_close) .. -1])
     end
   end
 
-  class StringLiteral
-    def parse(match, after)
-    end
-  end
+  SubParser = {
+    Config.string_literal_open => String
+  }
 
   def parse(text)
-    open = Regexp.union [
-      Regexp.quote(Config.doc_start),
-      Regexp.quote(Config.doc_line),
-      Regexp.quote(Config.doc_line),
-      Regexp.quote(Config.string_literal_open),
-    ]
-    re = /\A(.+?)(#{open.source})(.+?)\z/m
-
-    while text =~ re
-      puts $1
-      text = $3
+    cur = Code.new
+    text.each_line do |line|
+      cur = cur.parse_line line
     end
   end
 end
