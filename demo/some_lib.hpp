@@ -14,6 +14,14 @@ void do_stuff(int n = 34);
 
 void dont_do_stuff(const char* foo = "///<") ///< hehe
 
+/// doc func
+void doc_func(const char* hehe = "{")
+{ code(); }
+
+/// doc func2
+void doc_func(const char* hehe = ";" /* hehe;{} */)
+;
+
 /// Documented class
 /// Does something
 class lib_class {
@@ -38,7 +46,7 @@ public:
     /// @ignore
 
     /// This is not a doc
-    void non_documented()
+    void non_documented(const char* not_end = "}");
 
     /// @endignore
 
