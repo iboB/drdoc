@@ -72,6 +72,10 @@ class other : public lib_class {
     ////// no doc
     virtual void vf() override {
         do_stuff();
+        const char* hax = "asd \
+            /// string \
+        /** \
+            more ";
     }
 };
 

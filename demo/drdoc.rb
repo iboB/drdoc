@@ -25,43 +25,81 @@ class PreParser
 
   Openers = {
     Config.doc_start => nil,
-    Config.doc_line => nil,
+    Config.doc_line => :DocLine,
     Config.string_literal_open => :StringElement,
     Config.comment_start => nil,
     Config.comment_line => nil,
-    Config.scope_begin => nil,
   }
 
   RE_Open = /(#{Regexp.union(Openers.keys)})/
 
   # element which is simply code
   class Code
+    def initialize
+      @elements = []
+    end
+
     def parse_line(line)
       index = line =~ RE_Open
-      return self if !index
-      rest = line[(index + $1.length) .. -1]
-      elem = Openers[$1]
-      if elem
-        PreParser.const_get(elem).new(self).parse_line(rest)
-      else
-        puts rest
+      if !index
+        @elements << line
+        return self
       end
-      self
+
+      elem = Openers[$1]
+
+      if elem
+        first = line[0..index]
+        rest = line[(index + $1.length) .. -1]
+
+        @elements << first
+        elem_instance = PreParser.const_get(elem).new(self)
+        @elements << elem_instance
+        elem_instance.parse_line(rest)
+      else
+        @elements << line
+        self
+      end
     end
+
+    attr_reader :elements
   end
 
   class StringElement
     def initialize(parent)
       @parent = parent
+      @contents = ''
     end
 
     def parse_line(line)
       # TODO: check escape
 
       i = line.index(Config.string_literal_close)
-      return self if !i
-      @parent.parse_line(line[(i + Config.string_literal_close.length) .. -1])
+      if !i
+        @contents += line
+        self
+      else
+        first = line[0..i]
+        @contents += first
+        rest = line[(i + Config.string_literal_close.length) .. -1]
+        @parent.parse_line(rest)
+      end
     end
+
+    attr_reader :contents
+  end
+
+  class DocLine
+    def initialize(parent)
+      @parent = parent
+    end
+
+    def parse_line(line)
+      @contents = line
+      return @parent
+    end
+
+    attr_reader :contents
   end
 
   #class MultiLineDoc
@@ -71,10 +109,14 @@ class PreParser
     text.each_line do |line|
       cur = cur.parse_line line
     end
+    cur
   end
 end
 
 text = File.open('some_lib.hpp', 'r').read
 
 parser = PreParser.new
-parser.parse(text)
+parser.parse(text).elements.each do |e|
+  next if e.class == String
+  puts e.contents
+end
