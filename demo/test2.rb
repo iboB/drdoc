@@ -42,45 +42,66 @@ class Preprocessor
     @stack.pop()
   end
 
+  def self.find_opener(line, config, allowed_types)
+    # find all openers at the best posible index
+    best_index = line.length
+    openers = []
+    allowed_types.each do |type|
+      element = config[type]
+      element.each do |instance|
+        i = instance[:begin] =~ line
+        next if !i
+        next if i > best_index
+        if i < best_index
+          best_index = i
+          openers = []
+        end
+        openers << {:type => type, :instance => instance, :key => $&, :index => i}
+      end
+    end
+    # the best match is the longest opener
+    openers.max { |a, b| a[:key].length <=> b[:key].length }
+  end
+
+  # return past the position of the closer
+  def self.find_closer(line, instance)
+    e = instance[:end] =~ line
+    return line.length if !e # no end so just get the entire line
+    pastEnd = e + $&.length
+
+    s = instance[:escape] =~ line
+    # if no escape and escape is not escaping end
+    # so return the end
+    return pastEnd if !s || s + $&.length != e
+
+    # recursively invoke the same function if the escape escapes the end
+    splitPoint = s + $&.length + 1
+    return splitPoint + find_closer(line[splitPoint, -1], instance)
+  end
+
   class StackCode
     def initialize(pp)
-      @config = pp.config
       @pp = pp
     end
 
     def parse_line(line)
-      opener = find_opener(line)
+      opener = Preprocessor.find_opener(line, @pp.config, [:doc, :exclude, :statement, :scope])
+      p opener
       # now that we have the opener, we can construct the stack object
       # and push in onto the stack
       stack_elem = Preprocessor.const_get(StackElementPerConfigType[opener[:type]]).new(self, opener)
       @pp.push(stack_elem)
 
-      return rest_of_line = line[(opener[:index] + opener[:key].length)..-1]
-    end
-
-    def find_opener(line)
-      # find all openers at the best posible index
-      best_index = line.length
-      openers = []
-      @config.each do |type, element|
-        element.each do |instance|
-          i = instance[:begin] =~ line
-          next if !i
-          next if i > best_index
-          if i < best_index
-            best_index = i
-            openers = []
-          end
-          openers << {:type => type, :instance => instance, :key => $&, :index => i}
-        end
-      end
-      # the best match is the longest opener
-      openers.max { |a, b| a[:key].length <=> b[:key].length }
+      return line[(opener[:index] + opener[:key].length)..-1]
     end
   end
 
   class StackDoc
     def initialize(pp, opener)
+      @instance = opener[:instance]
+    end
+
+    def parse_line(line)
     end
   end
 
@@ -100,7 +121,7 @@ class Preprocessor
   end
 
   def parse_line(line)
-    @stack.last.parse_line(line)
+    while line = @stack.last.parse_line(line); end
   end
 
   def parse(text)
