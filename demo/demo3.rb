@@ -1,29 +1,22 @@
 class Split
-  def initialize(position, length)
-    @position = position
-    @length = length
+  def initialize(first, mid, last)
+    @first = first
+    @mid = mid
+    @last = last
   end
 
-  attr_reader :position, :length
-
-  def first_of(s)
-    s[0, @position]
+  def self.empty
+    self.new('', '', '')
   end
 
-  def mid_of(s)
-    s[@position, @length]
+  def self.[](s, pos, len)
+    self.new(s[0, pos], s[pos, len], s[pos+len .. -1])
   end
 
-  def last_of(s)
-    s[@position+@length .. -1]
-  end
-
-  def shift_by!(n)
-    @position += n
-  end
+  attr_accessor :first, :mid, :last
 
   def inspect
-    "Split(pos:#{@position}, len:#{@length})"
+    "Split(#{@first.inspect}-#{@mid.inspect}-#{@last.inspect})"
   end
 end
 
@@ -41,17 +34,21 @@ def find_opener(line, elems)
       best_index = i
       openers = []
     end
-    openers << {:instance => instance, :split => Split.new(i, $&.length)}
+    openers << {:instance => instance, :si => i, :slen => $&.length}
   end
 
   return nil if openers.empty?
-  openers.max { |a, b| a[:split].length <=> b[:key_len] }
+  opener = openers.max { |a, b| a[:slen] <=> b[:slen] }
+  return {
+    :instance => opener[:instance],
+    :split => Split[line, opener[:si], opener[:slen]]
+  }
 end
 
-def find_closer(line, instance)
+def do_find_closer(line, instance)
   e = instance[:end] =~ line
   return nil if !e # no end
-  split = Split.new(e, $&.length)
+  split = [e, $&.length]
 
   # no escape and we're done
   esc = instance[:escape]
@@ -63,9 +60,24 @@ def find_closer(line, instance)
 
   # recursively invoke the same function if the escape escapes the end
   split_point = s + $&.length + 1
-  closer = find_closer(line[split_point..-1], instance)
-  closer.shift_by!(split_point) if closer
-  closer
+  split = do_find_closer(line[split_point..-1], instance)
+  split[0] += split_point if split
+  split
+end
+
+def find_closer(line, instance)
+  split_data = do_find_closer(line, instance)
+  return nil if !split_data
+  ret = Split[line, *split_data]
+  # since matching newlines with regex is hard,
+  # we can just check for a newline here and if the rest of the string is a newline
+  # we will just append it to the closer itself
+  # (hacky)
+  if ret.last == "\n"
+    ret.mid += "\n"
+    ret.last = ''
+  end
+  ret
 end
 
 def prepare_config(config)
@@ -95,31 +107,30 @@ end
 
 class CodePreprocessor
   class Elem
-    def initialize(type, opener)
+    def initialize(type, split)
       @type = type
-      @opener = opener
-      @buf = ''
+      @split = split
     end
 
     def inspect
-      "CP::Elem(#{@type.inspect}, #{@opener.inspect}-#{@buf.inspect}-#{@closer.inspect})"
+      "CP::Elem(#{@type.inspect}, #{@split.inspect})"
     end
-    attr_reader :type, :opener, :buf, :closer
+
+    attr_reader :type, :split
   end
 
   class Code < Elem
     def initialize(pp, instance, closer)
-      super(:code, '')
+      super(:code, Split.new('', '', ''))
       @config = pp.config
-      @closer = ''
     end
     def parse_line(line)
       opener = find_opener(line, @config)
       if opener
-        @buf += opener[:split].first_of(line)
+        @split.mid += opener[:split].first
         return opener
       else
-        @buf += line
+        @split.mid += line
         return nil
       end
     end
@@ -127,17 +138,17 @@ class CodePreprocessor
 
   class Block < Elem
     def initialize(pp, instance, opener)
-      super(instance[:type], opener)
+      super(instance[:type], Split.new(opener, '', ''))
       @instance = instance
     end
     def parse_line(line)
-      split = find_closer(line, @instance)
-      if split
-        @buf += split.first_of(line)
-        @closer = split.mid_of(line)
-        return {:instance => {:type => :code}, :split => split}
+      closing_split = find_closer(line, @instance)
+      if closing_split
+        @split.mid += closing_split.first
+        @split.last = closing_split.mid
+        return {:instance => {:type => :code}, :split => closing_split}
       else
-        @buf += line
+        @split.mid += line
         return nil
       end
     end
@@ -158,9 +169,8 @@ class CodePreprocessor
   def parse_line(line)
     while parse_result = @elems.last.parse_line(line)
       split = parse_result[:split]
-      opener = split.mid_of(line)
-      line = split.last_of(line)
-      break if line.empty?
+      opener = split.mid
+      line = split.last
       instance = parse_result[:instance]
       @elems << CodePreprocessor.const_get(TypeToElem[instance[:type]]).new(self, parse_result[:instance], opener)
     end
@@ -171,6 +181,7 @@ class CodePreprocessor
     text.each_line do |line|
       parse_line(line)
     end
+    puts @elems.map(&:inspect).join("\n")
   end
 end
 
@@ -190,11 +201,8 @@ CPP_CONFIG = {
 
 config = prepare_config(CPP_CONFIG)
 # p find_opener(' sdsa   /*"// asd  ""', config)
-# str = 'dsad"'
-# s = find_closer(str, config[2])
-# p s.first_of(str)
-# p s.mid_of(str)
-# p s.last_of(str)
+# p find_closer("sad\n", config[1])
 
 CodePreprocessor.new(config).parse(File.open('some_lib.hpp', 'r').read)
 
+# p Split["Asd", 1, 2]
