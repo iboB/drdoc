@@ -1,3 +1,32 @@
+class Split
+  def initialize(position, length)
+    @position = position
+    @length = length
+  end
+
+  attr_reader :position, :length
+
+  def first_of(s)
+    s[0, @position]
+  end
+
+  def mid_of(s)
+    s[@position, @length]
+  end
+
+  def last_of(s)
+    s[@position+@length .. -1]
+  end
+
+  def shift_by!(n)
+    @position += n
+  end
+
+  def inspect
+    "Split(pos:#{@position}, len:#{@length})"
+  end
+end
+
 def find_opener(line, elems)
   # find all openers at the best posible index
   best_index = line.length
@@ -12,35 +41,31 @@ def find_opener(line, elems)
       best_index = i
       openers = []
     end
-    openers << {:instance => instance, :key_len => $&.length}
+    openers << {:instance => instance, :split => Split.new(i, $&.length)}
   end
 
   return nil if openers.empty?
-  best = openers.max { |a, b| a[:key_len] <=> b[:key_len] }
-  return {
-    :instance => best[:instance],
-    :split => [best_index, best_index + best[:key_len]]
-  }
+  openers.max { |a, b| a[:split].length <=> b[:key_len] }
 end
 
 def find_closer(line, instance)
   e = instance[:end] =~ line
   return nil if !e # no end
-  past_end = e + $&.length
+  split = Split.new(e, $&.length)
 
   # no escape and we're done
   esc = instance[:escape]
-  return [e, past_end] if !esc
+  return split if !esc
 
   s = esc =~ line
   # if no escape and escape is not escaping end return the end
-  return [e, past_end] if !s || s + $&.length != e
+  return split if !s || s + $&.length != e
 
   # recursively invoke the same function if the escape escapes the end
   split_point = s + $&.length + 1
-  close = find_closer(line[split_point..-1], instance)
-  close.map! { |i| i + split_point } if close
-  close
+  closer = find_closer(line[split_point..-1], instance)
+  closer.shift_by!(split_point) if closer
+  closer
 end
 
 def prepare_config(config)
@@ -75,6 +100,10 @@ class CodePreprocessor
       @opener = opener
       @buf = ''
     end
+
+    def inspect
+      "CP::Elem(#{@type.inspect}, #{@opener.inspect}-#{@buf.inspect}-#{@closer.inspect})"
+    end
     attr_reader :type, :opener, :buf, :closer
   end
 
@@ -82,11 +111,12 @@ class CodePreprocessor
     def initialize(pp, instance, closer)
       super(:code, '')
       @config = pp.config
+      @closer = ''
     end
     def parse_line(line)
       opener = find_opener(line, @config)
       if opener
-        @buf += line[0..opener[:split][0]]
+        @buf += opener[:split].first_of(line)
         return opener
       else
         @buf += line
@@ -101,11 +131,11 @@ class CodePreprocessor
       @instance = instance
     end
     def parse_line(line)
-      closer = find_closer(line, @instance)
-      if closer
-        @buf += line[0..closer[0]]
-        @closer = line[closer[0]..closer[1]]
-        return {:instance => {:type => :code}, :split => closer}
+      split = find_closer(line, @instance)
+      if split
+        @buf += split.first_of(line)
+        @closer = split.mid_of(line)
+        return {:instance => {:type => :code}, :split => split}
       else
         @buf += line
         return nil
@@ -128,8 +158,9 @@ class CodePreprocessor
   def parse_line(line)
     while parse_result = @elems.last.parse_line(line)
       split = parse_result[:split]
-      opener = line[split[0]...split[1]]
-      line = line[split[1]..-1]
+      opener = split.mid_of(line)
+      line = split.last_of(line)
+      break if line.empty?
       instance = parse_result[:instance]
       @elems << CodePreprocessor.const_get(TypeToElem[instance[:type]]).new(self, parse_result[:instance], opener)
     end
@@ -139,9 +170,6 @@ class CodePreprocessor
     @elems = [Code.new(self, nil, nil)]
     text.each_line do |line|
       parse_line(line)
-    end
-    @elems.each do |e|
-      p e
     end
   end
 end
@@ -162,6 +190,11 @@ CPP_CONFIG = {
 
 config = prepare_config(CPP_CONFIG)
 # p find_opener(' sdsa   /*"// asd  ""', config)
-# p find_closer('dsad \" a\sd"', config[2])
+# str = 'dsad"'
+# s = find_closer(str, config[2])
+# p s.first_of(str)
+# p s.mid_of(str)
+# p s.last_of(str)
 
-CodePreprocessor.new(config).parse("xxx\n\"dasd\"")
+CodePreprocessor.new(config).parse(File.open('some_lib.hpp', 'r').read)
+
