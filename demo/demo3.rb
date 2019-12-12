@@ -13,6 +13,10 @@ class Split
     self.new(s[0, pos], s[pos, len], s[pos+len .. -1])
   end
 
+  def empty?
+    @first.empty? && @mid.empty? && last.empty?
+  end
+
   attr_accessor :first, :mid, :last
 
   def inspect
@@ -39,9 +43,20 @@ def find_opener(line, elems)
 
   return nil if openers.empty?
   opener = openers.max { |a, b| a[:slen] <=> b[:slen] }
+
+  split = Split[line, opener[:si], opener[:slen]]
+
+  # if the split begins with whitespace, just append it to the mid
+  # thus we cary the indentation infromation with the designated element
+  # (hacky)
+  if split.first.strip.empty?
+    split.mid = split.first + split.mid
+    split.first = ''
+  end
+
   return {
     :instance => opener[:instance],
-    :split => Split[line, opener[:si], opener[:slen]]
+    :split => split
   }
 end
 
@@ -181,6 +196,7 @@ class CodePreprocessor
     text.each_line do |line|
       parse_line(line)
     end
+    @elems.select! { |elem| !elem.split.empty? }
     puts @elems.map(&:inspect).join("\n")
   end
 end
