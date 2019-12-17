@@ -178,6 +178,7 @@ class CodePreprocessor
   TypeToElem = {
     :code => :Code,
     :comment => :Block,
+    :doc => :Block,
     :exclude => :Block,
   }
 
@@ -205,6 +206,10 @@ CPP_CONFIG = {
   :comment => [
     { :begin => '/*', :end => '*/' },
     { :begin => '//', :end => /$/, :escape => '\\' },
+  ],
+  :doc => [
+    { :begin => '/**', :end => '*/' },
+    { :begin => '///', :end => /$/, :escape => '\\' },
   ],
   :exclude => [
     { :begin => '"', :end => '"', :escape => '\\' }
