@@ -120,23 +120,27 @@ def prepare_config(config)
   ret
 end
 
-class CodePreprocessor
+class Preprocessor
   class Elem
-    def initialize(type, split)
-      @type = type
+    def initialize(instance, split)
+      @instance = instance
       @split = split
     end
 
     def inspect
-      "CP::Elem(#{@type.inspect}, #{@split.inspect})"
+      "CP::Elem(#{instance[:type].inspect}, #{@split.inspect})"
     end
 
-    attr_reader :type, :split
+    def to_hash
+      {:instance => @instance, :split => @split}
+    end
+
+    attr_reader :instance, :split
   end
 
   class Code < Elem
     def initialize(pp, instance, closer)
-      super(:code, Split.new('', '', ''))
+      super(instance, Split.new('', '', ''))
       @config = pp.config
     end
     def parse_line(line)
@@ -153,8 +157,7 @@ class CodePreprocessor
 
   class Block < Elem
     def initialize(pp, instance, opener)
-      super(instance[:type], Split.new(opener, '', ''))
-      @instance = instance
+      super(instance, Split.new(opener, '', ''))
     end
     def parse_line(line)
       closing_split = find_closer(line, @instance)
@@ -188,17 +191,37 @@ class CodePreprocessor
       opener = split.mid
       line = split.last
       instance = parse_result[:instance]
-      @elems << CodePreprocessor.const_get(TypeToElem[instance[:type]]).new(self, parse_result[:instance], opener)
+      @elems << Preprocessor.const_get(TypeToElem[instance[:type]]).new(self, parse_result[:instance], opener)
     end
   end
 
   def parse(text)
-    @elems = [Code.new(self, nil, nil)]
+    @elems = [Code.new(self, {:type => :code}, nil)]
     text.each_line do |line|
       parse_line(line)
     end
-    @elems.select! { |elem| !elem.split.empty? }
-    puts @elems.map(&:inspect).join("\n")
+    @elems.select { |elem| !elem.split.empty? }.map(&:to_hash)
+  end
+end
+
+# take care of ignore stuff
+class Preparser
+  def parse(elems)
+    ignoring = false
+    elems.each do |elem|
+      inst = elem[:instance]
+      next if inst[:type] != :doc
+
+      if ignoring
+        inst[:type] = :code
+        if elem[:split].mid =~ /@endignore/
+          ignoring = false
+        end
+      elsif elem[:split].mid =~ /@ignore/
+        ignoring = true
+        inst[:type] = :code
+      end
+    end
   end
 end
 
@@ -212,7 +235,8 @@ CPP_CONFIG = {
     { :begin => '///', :end => /$/, :escape => '\\' },
   ],
   :exclude => [
-    { :begin => '"', :end => '"', :escape => '\\' }
+    { :begin => '"', :end => '"', :escape => '\\' },
+    { :begin => '\'', :end => '\'', :escape => '\\' }
   ]
 }
 
@@ -224,6 +248,10 @@ config = prepare_config(CPP_CONFIG)
 # p find_opener(' sdsa   /*"// asd  ""', config)
 # p find_closer("sad\n", config[1])
 
-CodePreprocessor.new(config).parse(File.open('some_lib.hpp', 'r').read)
+elems = Preprocessor.new(config).parse(File.open('some_lib.hpp', 'r').read)
+elems = Preparser.new.parse(elems)
+
+puts elems.map(&:inspect).join("\n")
+
 
 # p Split["Asd", 1, 2]
