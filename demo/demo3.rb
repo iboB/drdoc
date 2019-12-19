@@ -207,22 +207,25 @@ end
 # take care of ignore stuff
 class Preparser
   def parse(elems)
+    comment_instance = {:type => :comment}
     ignoring = false
     elems.each do |elem|
-      inst = elem[:instance]
-      next if inst[:type] != :doc
-
+      next if elem[:instance][:type] != :doc
       if ignoring
-        inst[:type] = :code
+        elem[:instance] = comment_instance
         if elem[:split].mid =~ /@endignore/
           ignoring = false
         end
       elsif elem[:split].mid =~ /@ignore/
         ignoring = true
-        inst[:type] = :code
+        elem[:instance] = comment_instance
       end
     end
   end
+end
+
+class Parser
+  # def parse(elems)
 end
 
 CPP_CONFIG = {
