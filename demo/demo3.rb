@@ -120,6 +120,7 @@ def prepare_config(config)
   ret
 end
 
+# find code, docs, comments and ignore blocks
 class Preprocessor
   class Elem
     def initialize(instance, split)
@@ -204,7 +205,8 @@ class Preprocessor
   end
 end
 
-# take care of ignore stuff
+# take care of @ignore stuff:
+# mark docs within @ingore - @endignore as mere comments
 class Preparser
   def parse(elems)
     comment_instance = {:type => :comment}
@@ -224,6 +226,7 @@ class Preparser
   end
 end
 
+# actually parse the code to transform it into scopes, statements and docs
 class Parser
   # def parse(elems)
 end
