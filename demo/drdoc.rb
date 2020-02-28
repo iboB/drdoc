@@ -1,4 +1,4 @@
-
+# kyp for this config style
 CONFIG = {
   :doc_start => '/**',
   :doc_inter => '*',
