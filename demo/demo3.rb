@@ -226,9 +226,20 @@ class Preparser
   end
 end
 
+class Tokenizer
+
+end
+
+
 # actually parse the code to transform it into scopes, statements and docs
+# builds an AST of sorts
 class Parser
-  # def parse(elems)
+  # def
+  def parse(elems)
+    elems.each do |elem|
+
+    end
+  end
 end
 
 CPP_CONFIG = {

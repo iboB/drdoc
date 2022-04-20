@@ -16,7 +16,7 @@ void dont_do_stuff(const char* foo = "///<"); ///< hehe
 
 /// doc func
 void doc_func(const char* hehe = "{")
-{ code(); }
+{ do_stuff(); }
 
 /// doc func2
 void doc_func(const char* hehe = ";" /* hehe;{} */)
